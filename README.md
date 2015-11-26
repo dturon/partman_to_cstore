@@ -1,6 +1,5 @@
 # Partman to cstore
 
-
 Partman to cstore is postgresql extension for moving old partman partitions to cstore columnar storage using cron job. When data is moved, new view **$parent_table+'_with_cstore'** contains parent table and data from cstore is created. All settings is in table **move_config**, there are attributes **move_int** - move old partman tables than $interval and **drop_int** - drop old cstore tables than $interval.
 
 ```
@@ -14,4 +13,5 @@ CREATE TABLE move_config(
 ```
 
 ## Limitations
+
 Its experimental extension, working only for partman **time-based** partitions!!!
