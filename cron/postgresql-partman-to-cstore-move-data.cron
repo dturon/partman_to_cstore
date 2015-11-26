@@ -1,0 +1,4 @@
+#!/bin/bash
+
+/usr/bin/partman_to_cstore_move_data --quiet
+:

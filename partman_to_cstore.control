@@ -1,0 +1,5 @@
+default_version = '1.0.1'
+comment = 'Extension to move old partman tables to cstore'
+
+relocatable = false
+requires = 'pg_partman, cstore_fdw'

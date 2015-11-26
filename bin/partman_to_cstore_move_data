@@ -1,0 +1,94 @@
+#!/usr/bin/python
+
+import sys
+import optparse
+import psycopg2
+import psycopg2.extras
+import psycopg2.extensions
+from psycopg2.extensions import AsIs
+
+psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+
+def main():
+    usage = "usage: %prog [options]"
+    parser = optparse. OptionParser(conflict_handler="resolve", usage=usage)
+    parser.add_option("-?", "--help", dest="help", action="store_true", help="Show help about pg_appinstall command line arguments, and exit.")
+    parser.add_option("-d", "--dbname", dest="dbname", default=None, help="Specifies the name of the database to connect to.")
+    parser.add_option("-h", "--host", dest="host", default="/tmp", help="Specifies the host name of the machine on which the server is running.")
+    parser.add_option("-p", "--port", dest="port", default=5432, help="Specifies the TCP port or the local Unix-domain socket file.")
+    parser.add_option("-U", "--username", dest="user", default='postgres', help="Connect to the database as the user username.")
+    parser.add_option("-v", "--verbose", dest="verbose", action="store_true", help="Print commands and results.")
+    parser.add_option("-q", "--quiet", dest="quiet", action="store_true", help="Quiet when not connect to PostgreSQL.")
+    (options, args) = parser.parse_args()
+
+    if options.help:
+        parser.print_help()
+        sys.exit(1)
+
+    if options.dbname:
+        r = move_data(options, options.dbname)
+        sys.exit(r)
+
+    try:
+        conn = psycopg2.extras.DictConnection("host=%s dbname=%s user=%s port=%s" % (options.host, "postgres", options.user, options.port))
+    except Exception, e:
+        if not options.quiet:
+            sys.stderr.write(str(e))
+        sys.exit(1)
+
+    conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    cur = conn.cursor()
+
+    cur.execute("SELECT datname FROM pg_database WHERE datname != 'postgres' AND datname NOT LIKE 'template%' ORDER BY 1;")
+    databases = cur.fetchall()
+
+    conn.close()
+
+    r = 0
+    for database in databases:
+        r |= move_data(options, database['datname'])
+    sys.exit(r)
+
+def move_data(options, dbname):
+    r = 0
+    try:
+        conn = psycopg2.extras.DictConnection("host=%s dbname=%s user=%s port=%s" % (options.host, dbname, options.user, options.port))
+        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT e.extname, n.nspname
+            FROM pg_catalog.pg_extension e 
+            LEFT JOIN pg_catalog.pg_namespace n ON n.oid = e.extnamespace 
+            LEFT JOIN pg_catalog.pg_description c ON c.objoid = e.oid AND c.classoid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+            WHERE e.extname = 'partman_to_cstore'
+            ORDER BY 1;
+        """)
+
+        res = cur.fetchone()
+        if res:
+            if options.verbose:
+                sys.stderr.write('%s: moving data from partman to cstore\n' % (dbname,))
+            cur.execute('SELECT parent_table, move_int, drop_int FROM %s.move_config;', (AsIs(res['nspname']),))
+            tables = cur.fetchall()
+            if len(tables)==0:
+                return r
+            for table in tables:
+                if options.verbose:
+                    sys.stderr.write('%s: moving data from parent table: %s to cstore\n' % (dbname, table['parent_table']))    
+                cur.execute('SELECT %s.part_to_cstore(%s,%s,%s);', (AsIs(res['nspname']), table['parent_table'], table['move_int'], table['drop_int']))
+
+        else:
+            if options.verbose:
+                sys.stderr.write('%s: partman_to_cstore not found\n' % (dbname,))
+    except Exception, e:
+        sys.stderr.write("%s: %s\n" % (dbname, str(e)))
+        r = 1
+    try:
+        conn.close()
+    except:
+        pass
+    return r
+
+if __name__ == "__main__":
+    main()
+
