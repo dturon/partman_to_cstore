@@ -1,3 +1,5 @@
+ALTER SERVER cstore_server RENAME TO partman_to_cstore_server;
+
 CREATE OR REPLACE FUNCTION part_to_cstore(p_parent_table text, move_int interval DEFAULT '1d', drop_int interval DEFAULT NULL) 
 RETURNS VOID AS
 $$

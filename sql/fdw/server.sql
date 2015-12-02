@@ -1,1 +1,1 @@
-CREATE SERVER cstore_server FOREIGN DATA WRAPPER cstore_fdw; 
+CREATE SERVER partman_to_cstore_server FOREIGN DATA WRAPPER cstore_fdw; 
