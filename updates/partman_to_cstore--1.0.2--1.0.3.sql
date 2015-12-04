@@ -1,3 +1,8 @@
+ALTER TABLE move_config ADD COLUMN compression text DEFAULT 'pglz';
+ALTER TABLE move_config ADD COLUMN stripe_row_count int; 
+ALTER TABLE move_config ADD COLUMN block_row_count int; 
+
+DROP FUNCTION part_to_cstore(text,interval,interval);
 CREATE OR REPLACE FUNCTION part_to_cstore(
     p_parent_table text, 
     move_int interval DEFAULT '1d', 

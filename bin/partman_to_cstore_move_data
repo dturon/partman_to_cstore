@@ -68,14 +68,14 @@ def move_data(options, dbname):
         if res:
             if options.verbose:
                 sys.stderr.write('%s: moving data from partman to cstore\n' % (dbname,))
-            cur.execute('SELECT parent_table, move_int, drop_int FROM %s.move_config;', (AsIs(res['nspname']),))
+            cur.execute('SELECT parent_table, move_int, drop_int, compression, stripe_row_count, block_row_count FROM %s.move_config;', (AsIs(res['nspname']),))
             tables = cur.fetchall()
             if len(tables)==0:
                 return r
             for table in tables:
                 if options.verbose:
                     sys.stderr.write('%s: moving data from parent table: %s to cstore\n' % (dbname, table['parent_table']))    
-                cur.execute('SELECT %s.part_to_cstore(%s,%s,%s);', (AsIs(res['nspname']), table['parent_table'], table['move_int'], table['drop_int']))
+                cur.execute('SELECT %s.part_to_cstore(%s, %s, %s, %s, %s, %s);', (AsIs(res['nspname']), table['parent_table'], table['move_int'], table['drop_int'], table['compression'], table['stripe_row_count'], table['block_row_count']))
 
         else:
             if options.verbose:
