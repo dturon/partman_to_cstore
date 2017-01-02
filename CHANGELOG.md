@@ -1,3 +1,6 @@
+1.0.4
+-- Support foreign table inheritance for PG 9.5, function for move common single part table to cstore and setup inheritence/checks 
+
 1.0.3
 -- Added cstore options to config, fix server name in function.
 

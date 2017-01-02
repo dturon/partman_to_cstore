@@ -44,5 +44,5 @@ INSERT INTO partman_to_cstore.move_config(parent_table, move_int, drop_int) VALU
 SELECT partman_to_cstore.part_to_cstore(p_parent_table:='test.test_time', move_int:='1day', drop_int:='15days');
 
 -- now can look on data
-SELECT * FROM test.test_time_with_cstore ORDER BY ts;
+SELECT * FROM test.test_time ORDER BY ts;
 ```

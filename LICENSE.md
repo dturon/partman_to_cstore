@@ -1,4 +1,4 @@
-PG Partition Manager (pg_partman) is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
+Partman to cstore is released under the PostgreSQL License, a liberal Open Source license, similar to the BSD or MIT licenses.
 
 Copyright (c) 2015 LinuxBox.cz, s.r.o.
 

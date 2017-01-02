@@ -39,7 +39,7 @@ def main():
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = conn.cursor()
 
-    cur.execute("SELECT datname FROM pg_database WHERE datname != 'postgres' AND datname NOT LIKE 'template%' ORDER BY 1;")
+    cur.execute("SELECT datname FROM pg_database WHERE datname != 'postgres' AND NOT datistemplate ORDER BY 1;")
     databases = cur.fetchall()
 
     conn.close()
