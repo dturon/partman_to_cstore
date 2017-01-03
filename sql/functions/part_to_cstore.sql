@@ -150,7 +150,7 @@ BEGIN
     --drop old cstore tables < drop_int
     IF drop_int IS NOT NULL THEN
         FOR _child_table IN
-            SELECT c.oid::pg_catalog.regclass 
+            SELECT c.relname 
             FROM pg_catalog.pg_namespace nc
             JOIN pg_catalog.pg_class c ON nc.oid = c.relnamespace 
             WHERE nspname = _schema 
