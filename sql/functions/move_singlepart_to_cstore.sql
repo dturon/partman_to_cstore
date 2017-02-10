@@ -12,8 +12,6 @@ DECLARE
     _parent_table text;
     _cmd text;
     _schema text;
-    _partman_schema text;
-    _tables_to_delete text[];
     _relowner text;
     _relacl boolean;
     _grant_privileges text;

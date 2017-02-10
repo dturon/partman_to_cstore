@@ -17,7 +17,7 @@ CREATE TABLE move_config(
 
 ## Limitations
 
-Its experimental extension, working only for partman **time-based(epoch too)** partitions!!! Don't forget that cstore tables isn't backuped by pg_dump and FDW tables don't have inheritence, checks and pushdown, so query planner scan all FDW tables.
+Its experimental extension, working only for partman **time-based(epoch too)** partitions!!! Don't forget that cstore tables isn't backuped by pg_dump(only schema dumped, no data included).
 
 ## Support for move common partitions
 There is function called **move_singlepart_to_cstore** with arguments schema and table name that can move single part of parted table to cstore. Doesn't matter if part is from pg_partman or standart postgresql partition. 
