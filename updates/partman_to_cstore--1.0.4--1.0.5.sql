@@ -1,3 +1,4 @@
+
 CREATE OR REPLACE FUNCTION part_to_cstore(
     p_parent_table text,
     move_int interval DEFAULT '1d',

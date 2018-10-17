@@ -1,4 +1,4 @@
-default_version = '1.0.4'
+default_version = '1.0.5'
 comment = 'Extension to move old partman tables to cstore'
 
 relocatable = false
