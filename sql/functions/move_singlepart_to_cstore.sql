@@ -1,8 +1,8 @@
 CREATE OR REPLACE FUNCTION move_singlepart_to_cstore(
     part_schema text,
-    part_table text, 
+    part_table text,
     compression text DEFAULT 'pglz',
-    stripe_row_count int DEFAULT NULL, 
+    stripe_row_count int DEFAULT NULL,
     block_row_count int DEFAULT NULL
 ) RETURNS VOID AS
 $$
@@ -23,7 +23,8 @@ DECLARE
     _options_arr text[];
     _constr_name text;
     _constr_def text;
-    
+    _row_count int;
+
 
 BEGIN
 
@@ -45,16 +46,16 @@ BEGIN
     RAISE DEBUG 'options: %', _options;
 
     _cmd = format(
-'SELECT 
+'SELECT
   n.nspname,
   c.relname,
   c.oid,
-  pg_get_userbyid(c.relowner), 
+  pg_get_userbyid(c.relowner),
   c.relacl IS NOT NULL,
   ci.relname
 
 FROM pg_catalog.pg_class c
-JOIN pg_catalog.pg_inherits i ON(i.inhrelid = c.oid) 
+JOIN pg_catalog.pg_inherits i ON(i.inhrelid = c.oid)
 JOIN pg_catalog.pg_class ci ON(ci.oid=i.inhparent)
 LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
 
@@ -70,63 +71,84 @@ ORDER BY 2, 3 LIMIT 1;
         RETURN;
     END IF;
 
-    RAISE DEBUG 'CREATE FOREIGN TABLE for %.%', _schema, _child_table;
-    SELECT string_agg(attname||' '||pg_catalog.format_type(atttypid, atttypmod)||CASE WHEN attnotnull THEN ' NOT NULL' ELSE '' END,',' ORDER BY attnum) 
-    FROM pg_attribute 
-    WHERE attrelid = _child_table_oid AND attnum > 0 AND NOT attisdropped 
-    INTO _cmd;
+    --check cstore table existence
+    _cmd = format('SELECT True
+    FROM pg_catalog.pg_foreign_table ft
+      INNER JOIN pg_catalog.pg_class c ON c.oid = ft.ftrelid
+      INNER JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      INNER JOIN pg_catalog.pg_foreign_server s ON s.oid = ft.ftserver
+       LEFT JOIN pg_catalog.pg_description d
+              ON d.classoid = c.tableoid AND d.objoid = c.oid AND d.objsubid = 0
+    WHERE c.relname = %L
+      AND n.nspname = %L
+    LIMIT 1', _child_table||'_cstore', _schema);
 
-
-    --create table
-    _cmd = format('CREATE FOREIGN TABLE %s.%s_cstore(%s) SERVER partman_to_cstore_server%s;', _schema, _child_table, _cmd, ' OPTIONS('||_options||')'); 
     RAISE DEBUG '%', _cmd;
     EXECUTE _cmd;
 
-    --alter owner
-    _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore OWNER TO %s;', _schema, _child_table, _relowner); 
-    RAISE DEBUG '%', _cmd;
-    EXECUTE _cmd;
+    GET DIAGNOSTICS _row_count = ROW_COUNT;
 
-    --set inheritence (working from PG 9.5)
-    _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore INHERIT %s.%s;', _schema, _child_table, _schema, _parent_table); 
-    RAISE DEBUG '%', _cmd;
-    EXECUTE _cmd;
+    IF _row_count = 0 THEN
 
-    --constraints (working from PG 9.5)
-    FOR _constr_name, _constr_def IN SELECT r.conname, pg_catalog.pg_get_constraintdef(r.oid, true)
-        FROM pg_catalog.pg_constraint r
-        WHERE r.conrelid = _child_table_oid AND r.contype = 'c'
-        ORDER BY 1
-    LOOP
-        _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore ADD CONSTRAINT %s %s;', _schema, _child_table, _constr_name, _constr_def); 
+        RAISE DEBUG 'CREATE FOREIGN TABLE for %.%', _schema, _child_table;
+        SELECT string_agg(attname||' '||pg_catalog.format_type(atttypid, atttypmod)||CASE WHEN attnotnull THEN ' NOT NULL' ELSE '' END,',' ORDER BY attnum)
+        FROM pg_attribute
+        WHERE attrelid = _child_table_oid AND attnum > 0 AND NOT attisdropped
+        INTO _cmd;
+
+
+        --create table
+        _cmd = format('CREATE FOREIGN TABLE %s.%s_cstore(%s) SERVER partman_to_cstore_server%s;', _schema, _child_table, _cmd, ' OPTIONS('||_options||')');
         RAISE DEBUG '%', _cmd;
         EXECUTE _cmd;
-    END LOOP;         
 
-    --revoke from public
-    _cmd = format('REVOKE ALL ON TABLE %s.%s_cstore FROM PUBLIC;', _schema, _child_table); 
-    RAISE DEBUG '%', _cmd;
-    EXECUTE _cmd;
-
-    --revoke from user
-    IF _relacl THEN
-        _cmd = format('REVOKE ALL ON TABLE %s.%s_cstore FROM %s;', _schema, _child_table, _relowner); 
+        --alter owner
+        _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore OWNER TO %s;', _schema, _child_table, _relowner);
         RAISE DEBUG '%', _cmd;
         EXECUTE _cmd;
+
+        --set inheritence (working from PG 9.5)
+        _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore INHERIT %s.%s;', _schema, _child_table, _schema, _parent_table);
+        RAISE DEBUG '%', _cmd;
+        EXECUTE _cmd;
+
+        --constraints (working from PG 9.5)
+        FOR _constr_name, _constr_def IN SELECT r.conname, pg_catalog.pg_get_constraintdef(r.oid, true)
+            FROM pg_catalog.pg_constraint r
+            WHERE r.conrelid = _child_table_oid AND r.contype = 'c'
+            ORDER BY 1
+        LOOP
+            _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore ADD CONSTRAINT %s %s;', _schema, _child_table, _constr_name, _constr_def);
+            RAISE DEBUG '%', _cmd;
+            EXECUTE _cmd;
+        END LOOP;
+
+        --revoke from public
+        _cmd = format('REVOKE ALL ON TABLE %s.%s_cstore FROM PUBLIC;', _schema, _child_table);
+        RAISE DEBUG '%', _cmd;
+        EXECUTE _cmd;
+
+        --revoke from user
+        IF _relacl THEN
+            _cmd = format('REVOKE ALL ON TABLE %s.%s_cstore FROM %s;', _schema, _child_table, _relowner);
+            RAISE DEBUG '%', _cmd;
+            EXECUTE _cmd;
+        END IF;
+
+        --grant all privileges
+        FOR _grant_privileges, _grantee IN
+            SELECT string_agg(DISTINCT privilege_type::text,',' ORDER BY privilege_type::text) AS types, grantee
+            FROM information_schema.table_privileges
+            WHERE table_schema = _schema AND table_name = _child_table
+            GROUP BY grantee
+        LOOP
+            --grant
+            _cmd = format('GRANT %s ON TABLE %s.%s_cstore TO %s;', _grant_privileges, _schema, _child_table, _grantee);
+            RAISE DEBUG '%', _cmd;
+            EXECUTE _cmd;
+        END LOOP;
+
     END IF;
-
-    --grant all privileges
-    FOR _grant_privileges, _grantee IN
-        SELECT string_agg(DISTINCT privilege_type::text,',' ORDER BY privilege_type::text) AS types, grantee 
-        FROM information_schema.table_privileges 
-        WHERE table_schema = _schema AND table_name = _child_table 
-        GROUP BY grantee
-    LOOP
-        --grant
-        _cmd = format('GRANT %s ON TABLE %s.%s_cstore TO %s;', _grant_privileges, _schema, _child_table, _grantee); 
-        RAISE DEBUG '%', _cmd;
-        EXECUTE _cmd;
-    END LOOP;
 
     RAISE DEBUG 'Moving data from table %.% to cstore', _schema, _child_table;
 
@@ -138,11 +160,11 @@ ORDER BY 2, 3 LIMIT 1;
     _cmd = format('DROP TABLE %s.%s;', _schema, _child_table);
     RAISE DEBUG '%', _cmd;
     EXECUTE _cmd;
-    
+
     _cmd = format('ALTER FOREIGN TABLE %s.%s_cstore RENAME TO %s;', _schema, _child_table, part_table);
     RAISE DEBUG '%', _cmd;
     EXECUTE _cmd;
-  
-    
+
+
 END;
 $$ LANGUAGE plpgsql VOLATILE;

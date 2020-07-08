@@ -1,3 +1,9 @@
+1.1.0
+-- Skip creating c-store tables if already exists 
+
+1.0.5
+-- Fix year partition intervals
+
 1.0.4
 -- Support foreign table inheritance for PG 9.5, function for move common single part table to cstore and setup inheritence/checks 
 
